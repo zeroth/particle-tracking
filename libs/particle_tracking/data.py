@@ -10,17 +10,22 @@ from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision import transforms
 
 class Data2D:
-    def __init__(self, img_dir_path:Path, labels_dir_path:Path) -> None:
-        self.img_dir_path = img_dir_path
-        self.lables_dir_path = labels_dir_path
-        self.org_images = self.load_data(self.img_dir_path)
-        self.org_labels = self.load_data(self.lables_dir_path)
+    def __init__(self, image:da.Array, labels:da.Array) -> None:
+        self.org_images = image
+        self.org_labels = labels
         self.images = self.prepare_data_for_ml(self.org_images)
         self.labels = self.prepare_data_for_ml(self.org_labels)
     
-    def load_data(self, data_path:Path):
+    @staticmethod
+    def load_tiff(data_path:Path):
         # return imread(os.path.join(data_path,"*.tif"))
         return imread(data_path)
+    
+    @staticmethod
+    def create(img_dir_path:Path, labels_dir_path:Path):
+        org_images = Data2D.load_tiff(img_dir_path)
+        org_labels = Data2D.load_tiff(labels_dir_path)
+        return Data2D(image=org_images, labels=org_labels)
     
     def prepare_data_for_ml(self, data:da.Array, shape_limit=(640,640)):
         if data.ndim < 2:
@@ -52,7 +57,7 @@ class Data2D:
     
     def resize_arr_to_original_size(self, data: da.Array, path:Path, shape_limit = (640, 640)):
         # get original shapes...
-        orig = self.load_data(path)
+        orig = self.org_images
         if orig.ndim == 3:
             Z_SIZE, Y_SIZE, X_SIZE = orig.shape
         

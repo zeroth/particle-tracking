@@ -132,7 +132,7 @@ class Model:
             # post-process
             mask = self.post_process_image(output)
             
-            return mask
+            return mask.astype('uint16')
         
     def post_process_image(self, output: torch.Tensor) -> np.ndarray:
         """Post process model output into binary mask."""
