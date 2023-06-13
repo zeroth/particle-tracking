@@ -100,6 +100,9 @@ class Model:
         """Pre-process the image for inference"""
         # update data shape to be divisible by 32
         img = Data2D.prepare_data_for_ml(img.astype(np.float32))
+        print(img.shape)
+        print(len(img))
+        print(img.dtype)
         # convert to tensor
         img_t = torch.FloatTensor(img)
         
