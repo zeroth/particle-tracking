@@ -97,9 +97,8 @@ class Model:
         
     def pre_process(self, img: np.ndarray) -> torch.Tensor:
         """Pre-process the image for inference"""
-
         # convert to tensor
-        img_t = torch.FloatTensor(img)
+        img_t = torch.FloatTensor(img.astype(np.float32))
         
         # add batch dimensions
         if img_t.ndim == 3:
