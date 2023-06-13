@@ -13,8 +13,8 @@ class Data2D:
     def __init__(self, image:da.Array, labels:da.Array) -> None:
         self.org_images = image
         self.org_labels = labels
-        self.images = self.prepare_data_for_ml(self.org_images)
-        self.labels = self.prepare_data_for_ml(self.org_labels)
+        self.images = Data2D.prepare_data_for_ml(self.org_images)
+        self.labels = Data2D.prepare_data_for_ml(self.org_labels)
     
     @staticmethod
     def load_tiff(data_path:Path):
@@ -27,7 +27,8 @@ class Data2D:
         org_labels = Data2D.load_tiff(labels_dir_path)
         return Data2D(image=org_images, labels=org_labels)
     
-    def prepare_data_for_ml(self, data:da.Array, shape_limit=(640,640)):
+    @staticmethod
+    def prepare_data_for_ml(data:da.Array, shape_limit=(640,640)):
         if data.ndim < 2:
             raise Exception("Data has to be minumum two dimintional you have provided only one")
         
@@ -55,9 +56,10 @@ class Data2D:
 
         return data.rechunk(chunks=(1, data.shape[1], data.shape[2]))
     
-    def resize_arr_to_original_size(self, data: da.Array, path:Path, shape_limit = (640, 640)):
+    @staticmethod
+    def resize_arr_to_original_size(org_images, data: da.Array, path:Path, shape_limit = (640, 640)):
         # get original shapes...
-        orig = self.org_images
+        orig = org_images
         if orig.ndim == 3:
             Z_SIZE, Y_SIZE, X_SIZE = orig.shape
         

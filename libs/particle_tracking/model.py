@@ -12,6 +12,7 @@ from torch import nn, optim
 import time
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
+from .data import Data2D
 
 class Model:
     def __init__(self, 
@@ -97,8 +98,10 @@ class Model:
         
     def pre_process(self, img: np.ndarray) -> torch.Tensor:
         """Pre-process the image for inference"""
+        # update data shape to be divisible by 32
+        img = Data2D.prepare_data_for_ml(img.astype(np.float32))
         # convert to tensor
-        img_t = torch.FloatTensor(img.astype(np.float32))
+        img_t = torch.FloatTensor(img)
         
         # add batch dimensions
         if img_t.ndim == 3:
@@ -129,11 +132,11 @@ class Model:
             output = self.model(img_t)
 
             # post-process
-            mask = self.post_process_image(output)
+            mask = self.post_process_image(img, output)
             
             return mask.astype('uint16')
         
-    def post_process_image(self, output: torch.Tensor) -> np.ndarray:
+    def post_process_image(self, org:np.ndarray, output: torch.Tensor) -> np.ndarray:
         """Post process model output into binary mask."""
         out1 = torch.sigmoid(output)
         out1 = (out1 > 0.5).float()
@@ -141,6 +144,8 @@ class Model:
 
         pred = pred.detach().cpu().numpy()
 
+        # resize to the original shape
+        pred = Data2D.resize_arr_to_original_size(org, pred)
         return pred
     
     def train_single_set(self, data:tuple):
