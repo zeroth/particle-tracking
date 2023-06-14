@@ -139,71 +139,71 @@ def main(input, radius=1, prefix=""):
     #     t.join()
     #     # get_mask(data[i], result, i)
 
-def test(input, prefix=""):
-    # data  = tifffile.imread(os.path.join(path, "*.tif*"))
-    data = tifffile.imread(path)
-    result = np.zeros(data.shape, dtype=data.dtype)
-    logging.basicConfig(format="%(asctime)s: %(message)s", level=logging.INFO, datefmt="%H:%M:%S")
+# def test(input, prefix=""):
+#     # data  = tifffile.imread(os.path.join(path, "*.tif*"))
+#     data = tifffile.imread(path)
+#     result = np.zeros(data.shape, dtype=data.dtype)
+#     logging.basicConfig(format="%(asctime)s: %(message)s", level=logging.INFO, datefmt="%H:%M:%S")
     
-    logging.info("Starting the test")
-    # mask = get_mask_v2, [data[i] for i in range(data.shape[0])]
-    points = find_points(data)
-    print(points)
-    logging.info("End")
-    mask = get_mask_v2(data)
+#     logging.info("Starting the test")
+#     # mask = get_mask_v2, [data[i] for i in range(data.shape[0])]
+#     points = find_points(data)
+#     print(points)
+#     logging.info("End")
+#     mask = get_mask_v2(data)
     
-    logging.info("Saving mask")
-    input = Path(input)
-    output_path = os.path.join(input.parent, "mask_{0}_{1}".format(prefix, input.name))
-    print(output_path)
-    print(result.shape)
-    tifffile.imwrite(output_path, mask)
+#     logging.info("Saving mask")
+#     input = Path(input)
+#     output_path = os.path.join(input.parent, "mask_{0}_{1}".format(prefix, input.name))
+#     print(output_path)
+#     print(result.shape)
+#     tifffile.imwrite(output_path, mask)
 
-def init_worker(result, path):
-    global result_image
-    # global result_path
-    result_image = result
-    # result_path = path
+# def init_worker(result, path):
+#     global result_image
+#     # global result_path
+#     result_image = result
+#     # result_path = path
 
-def get_mask_v3(input, radius=1, index=0):
-    points = find_points(input)
-    mask =  draw_points(np.zeros(input.shape, dtype=input.dtype), points, radius)
-    global result_image
-    # global result_path
-    result_image[index] = mask
-    result_image.flush()
-    # tifffile.imwrite(result_path, result_image)
-    print("saved {0}".format(index))
+# def get_mask_v3(input, radius=1, index=0):
+#     points = find_points(input)
+#     mask =  draw_points(np.zeros(input.shape, dtype=input.dtype), points, radius)
+#     global result_image
+#     # global result_path
+#     result_image[index] = mask
+#     result_image.flush()
+#     # tifffile.imwrite(result_path, result_image)
+#     print("saved {0}".format(index))
     
-def main_v2(input, radius=1, prefix=""):
-    logging.basicConfig(format="%(asctime)s: %(message)s", level=logging.INFO, datefmt="%H:%M:%S")
+# def main_v2(input, radius=1, prefix=""):
+#     logging.basicConfig(format="%(asctime)s: %(message)s", level=logging.INFO, datefmt="%H:%M:%S")
 
-    data = tifffile.imread(path)
+#     data = tifffile.imread(path)
     
-    result = np.zeros(data.shape, dtype=data.dtype)
+#     result = np.zeros(data.shape, dtype=data.dtype)
     
-    input = Path(input)
-    output_path = os.path.join(input.parent,  "mask_{0}_{1}".format(prefix, input.name))
-    tifffile.imwrite(output_path, result)
-    del result
-    result = tifffile.memmap(output_path, shape=data.shape, dtype=data.dtype, mode='r+')
+#     input = Path(input)
+#     output_path = os.path.join(input.parent,  "mask_{0}_{1}".format(prefix, input.name))
+#     tifffile.imwrite(output_path, result)
+#     del result
+#     result = tifffile.memmap(output_path, shape=data.shape, dtype=data.dtype, mode='r+')
     
-    logging.info("Starting the threading")
+#     logging.info("Starting the threading")
 
-    processes = int(os.cpu_count()-1) if os.cpu_count() >=8 else os.cpu_count()/2
+#     processes = int(os.cpu_count()-1) if os.cpu_count() >=8 else os.cpu_count()/2
     
-    with Pool(initializer=init_worker, initargs=(result, output_path, ), processes=processes) as pool:
-        pool.starmap(get_mask_v3, [(data[i], radius, i) for i in range(data.shape[0])])
+#     with Pool(initializer=init_worker, initargs=(result, output_path, ), processes=processes) as pool:
+#         pool.starmap(get_mask_v3, [(data[i], radius, i) for i in range(data.shape[0])])
     
-    result.flush()
-    # pool = Pool(processes= processes)
-    # x = pool.starmap(get_mask_v2, [(data[i], radius) for i in range(data.shape[0])])
-    # result = np.array(x)
+#     result.flush()
+#     # pool = Pool(processes= processes)
+#     # x = pool.starmap(get_mask_v2, [(data[i], radius) for i in range(data.shape[0])])
+#     # result = np.array(x)
 
-    logging.info("Done !")
-    print(output_path)
-    print(result.shape)
-    del result
+#     logging.info("Done !")
+#     print(output_path)
+#     print(result.shape)
+#     del result
     
 
 
@@ -227,9 +227,9 @@ if __name__ == "__main__":
     
     parser = init_argparse()
     # args = parser.parse_args()
-    # args = parser.parse_args("D:/Data/Sudipta/Arpan/ML_Training/data -p radius_sqrt ".split())
+    args = parser.parse_args("E:/Sudipta/Arpan/send-1.tif -p radius_sqrt ".split())
     # args = parser.parse_args("D:/Data/Sucharita/C1-20ul_liposome_with_high_peptide_30ms_33.33hz_1_ch2_left.tif -p radius_sqrt ".split())
-    args = parser.parse_args("D:/Data/Sucharita/sample/C1-20ul_liposome_with_high_peptide_30ms_33.33hz_1_ch2_left_10.tif -p radius_sqrt_sample ".split())
+    # args = parser.parse_args("D:/Data/Sucharita/sample/C1-20ul_liposome_with_high_peptide_30ms_33.33hz_1_ch2_left_10.tif -p radius_sqrt_sample ".split())
     print(args)
 
     path = args.dir[0]

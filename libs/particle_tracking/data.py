@@ -4,99 +4,24 @@ from pathlib import Path
 from typing import Optional
 import numpy as np
 import tifffile
-from dask_image.imread import imread
 import dask.array as da
 from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision import transforms
+from .utils import reshape_input_data, revert_tensor_shape, reshape_output_data, convert_tensor_shape, load_tiff
 
 class Data2D:
     def __init__(self, image:da.Array, labels:da.Array) -> None:
         self.org_images = image
         self.org_labels = labels
-        self.images = Data2D.prepare_data_for_ml(self.org_images)
-        self.labels = Data2D.prepare_data_for_ml(self.org_labels)
-    
-    @staticmethod
-    def load_tiff(data_path:Path):
-        # return imread(os.path.join(data_path,"*.tif"))
-        return imread(data_path)
+        self.images = reshape_input_data(self.org_images)
+        self.labels = reshape_input_data(self.org_labels)
     
     @staticmethod
     def create(img_dir_path:Path, labels_dir_path:Path):
-        org_images = Data2D.load_tiff(img_dir_path)
-        org_labels = Data2D.load_tiff(labels_dir_path)
+        org_images = load_tiff(img_dir_path)
+        org_labels = load_tiff(labels_dir_path)
         return Data2D(image=org_images, labels=org_labels)
-    
-    @staticmethod
-    def prepare_data_for_ml(data:da.Array, shape_limit=(640,640)):
-        if data.ndim < 2:
-            raise Exception("Data has to be minumum two dimintional you have provided only one")
-        
-        # shape needs to be divisible by 32
-        # the model downsamples the images by factor of 2x each layer pass, so needs to have the dimensions match that.
-        # 640x640 isnt the upper limit, its just the default shape. chosen arbitrarily because that is the data we started with
 
-        # check last two dims of data and get them to the shape limit
-        if(data.shape[-2] > shape_limit[0] or data.shape[-1] > shape_limit[1]):
-            max_shape = np.max([data.shape[-2], data.shape[-1]])
-            limit = int(np.ceil(max_shape/32)*32 ) # upper multiple of 32
-            shape_limit = (limit, limit)
-        
-        pad_0 = (shape_limit[0] - data.shape[-2]) // 2
-        pad_1 = (shape_limit[1] - data.shape[-1]) // 2
-
-        data = da.pad(data, ((0,0), (pad_0, pad_0), (pad_1,pad_1)), mode="constant", constant_values = 0)
-        pad_1, pad_2 = 0, 0
-        if data.shape[-2] % 2 != 0:
-            pad_1 = 1
-        if data.shape[-1] % 2 != 0:
-            pad_2 = 1
-        
-        data = da.pad(data, ((0, 0), (0, pad_1), (0, pad_2)), mode="constant", constant_values=0)
-
-        return data.rechunk(chunks=(1, data.shape[1], data.shape[2]))
-    
-    @staticmethod
-    def resize_arr_to_original_size(org_images, data: da.Array, path:Path, shape_limit = (640, 640)):
-        # get original shapes...
-        orig = org_images
-        if orig.ndim == 3:
-            Z_SIZE, Y_SIZE, X_SIZE = orig.shape
-        
-        # check last two dims of data and get them to the shape limit
-        if(orig.shape[-2] > shape_limit[0] or orig.shape[-1] > shape_limit[1]):
-            max_shape = np.max([data.shape[-2], orig.shape[-1]])
-            limit = int(np.ceil(max_shape/32)*32 ) # upper multiple of 32
-            shape_limit = (limit, limit)
-        
-        pad_0 = (shape_limit[0] - orig.shape[-2]) // 2
-        pad_1 = (shape_limit[1] - orig.shape[-1]) // 2
-
-        print("Pad vals ", pad_0, pad_1)
-        print("B", data.shape)
-        # crop back 
-        data = data[:, pad_0:-pad_0, pad_1:-pad_1]
-        # arr = da.pad(orig, ((0,0), (pad_0, pad_0), (pad_1,pad_1)), mode="constant", constant_values = 0)
-        print("A", data.shape)
-        pad_1, pad_2 = 0, 0
-        if orig.shape[-2] % 2 != 0:
-            pad_1 = 1
-        if orig.shape[-1] % 2 != 0:
-            pad_2 = 1
-        print("Pad vals 2", pad_1, pad_2)
-
-        if pad_1:
-            data = data[:, :-pad_1, :]
-        if pad_2:
-            data = data[:, :, :-pad_2]
-        
-        # arr = arr[:, :-pad_1, :-pad_2]
-        print("A 2", data.shape)
-        # reshape back to (t, z, y, x) format
-        data = data.reshape(Z_SIZE, data.shape[1], data.shape[2]) # crop back down?
-
-        return data.astype(orig.dtype)
-    
 
 class Dataset2D(Dataset):
     def __init__(self, images, labels, transform=transforms.Compose([transforms.ToTensor()])):

@@ -1,5 +1,29 @@
 import dask.array as da
 import numpy as np
+from dask_image.imread import imread
+from pathlib import Path
+import torch
+
+def load_tiff(data_path:Path):
+    # return imread(os.path.join(data_path,"*.tif"))
+    data = imread(data_path)
+    return data.astype(np.float32).rechunk(chunks=(1, data.shape[-2], data.shape[-1]))
+
+def iou(prediction:torch.Tensor, mask:torch.Tensor, eps:float = -1e-7):
+    intersection = torch.sum(mask * prediction)
+    union = torch.sum(mask) + torch.sum(prediction) - intersection + eps
+    return (intersection+eps)/union
+
+def accuracy(prediction:torch.Tensor, mask:torch.Tensor):
+    tp = torch.sum(mask == prediction, dtype=prediction.dtype)
+    score = tp/mask.view(-1).shape[0]
+    return score
+
+def float_to_unit8(tensor:torch.Tensor):
+    tensor = torch.sigmoid(tensor)
+    tensor = (tensor>0.5).float()
+    tensor = tensor * 255.0
+    return tensor
 
 # array shape related helper function for 2d data and dask array 
 def _get_padding(x:da.Array, stride:int=32):
@@ -32,24 +56,28 @@ def revert_tensor_shape(x:da.Array):
 def reshape_input_data(input_data:da.Array):
     # Unet requires the data to be of shape divisible by 32
     padding = _get_padding(input_data, 32)
-    return da.pad(input_data, padding, 'constant')
+    data =  da.pad(input_data, padding, 'constant')
+    return data.rechunk(chunks=(1, data.shape[-2], data.shape[-1]))
 
-def reshape_output_data(input_data:da.Array, ouput_data:da.Array):
-    padding = _get_padding(input_data, 32)
+def reshape_output_data(org_data:da.Array, ouput_data:da.Array):
+    padding = _get_padding(org_data, 32)
     w_pad = padding[-1]
     h_pad = padding[-2]
     slices = [[0,0],] * ouput_data.ndim
     slices[-1] = [w_pad[0], -w_pad[1]]
     slices[-2] = [h_pad[0], -h_pad[1]]
+    data = ouput_data
     if ouput_data.ndim == 2:
         # h & w
-        return ouput_data[slices[-2][0]:slices[-2][1], slices[-1][0]:slices[-1][1]]
+        data = ouput_data[slices[-2][0]:slices[-2][1], slices[-1][0]:slices[-1][1]]
     elif ouput_data.ndim == 3:
         # z/c, h & w
-        return ouput_data[:, slices[-2][0]:slices[-2][1], slices[-1][0]:slices[-1][1]]
+        data = ouput_data[:, slices[-2][0]:slices[-2][1], slices[-1][0]:slices[-1][1]]
     else:
         # t/b, z/c, h & w
-        return ouput_data[:, :, slices[-2][0]:slices[-2][1], slices[-1][0]:slices[-1][1]]
+        data = ouput_data[:, :, slices[-2][0]:slices[-2][1], slices[-1][0]:slices[-1][1]]
+    
+    return data.astype(org_data.dtype)
 
 
 def test_shapes():
@@ -69,4 +97,4 @@ def test_shapes():
     print("revert_tensor_shape", revert_tensor_shape.shape)
 
 if __name__ == "__main__":
-    test()
+    test_shapes()

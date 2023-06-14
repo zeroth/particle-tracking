@@ -9,29 +9,30 @@ from torch import nn, optim
 from tqdm import tqdm
 from pprint import pprint
 import logging
-from data import Data2D, Dataset2D
-from model import Model
+from particle_tracking.data import Data2D, Dataset2D
+from particle_tracking.model import Model
 from datetime import datetime
 
-os.environ["KMP_DUPLICATE_LIB_OK"]= True
+os.environ["KMP_DUPLICATE_LIB_OK"]= "TRUE"
 
 
-def training_loop(n_epochs, model):
+def training_loop(n_epochs, model, dataloader):
+    best_vloss = 1_000_000.
     # Training loop
     for epoch in tqdm(range(n_epochs), desc="Training Loop"):
         model.train(True)
         # print(f"Training {epoch}\n")
-        avg_loss= model.train_one_epoch(epoch_index=epoch)
+        avg_loss= model.train_one_epoch(dataloader, epoch_index=epoch)
         model.train(False)
 
-        avg_vloss, avg_accuracy  = model.validate_training(epoch_number=epoch, avg_loss=avg_loss)
+        avg_vloss, avg_iou, avg_accuracy  = model.validate_training(dataloader, epoch_number=epoch, avg_loss=avg_loss)
         # avg_accuracy = model.accuracy_check(epoch_number=epoch)
         model.flush_writer()
 
         # model.add_sclares_writer("Training Avg VLoss vs Avg Accuracy ", {"VLoss": avg_vloss, "Accuracy": avg_accuracy}, epoch)
         # Track best performance, and save the model's state
         if avg_vloss < best_vloss:
-            model.add_sclares_writer("Training  Best Vloss vs Avg VLoss ", {"Best": best_vloss, "Avg": avg_vloss}, epoch)
+            model.add_scalars_writer("Training  Best Vloss vs Avg VLoss ", {"Best": best_vloss, "Avg": avg_vloss}, epoch)
             best_vloss = avg_vloss
             # model_path = 'model_{}_{}.pt'.format(timestamp, epoch)
             # # torch.save(model.state_dict(), model_path)
@@ -39,9 +40,13 @@ def training_loop(n_epochs, model):
 
 def accuraccy_loop(model:Model, dataloader):
     for i, (image, mask) in enumerate(dataloader):
+        image, mask = image.to(model.device), mask.to(model.device)
+        # print("image.shape", image.shape)
         prediction = model.prediction(image)
-        accuracy = model.intensity_over_union(prediction=prediction, mask=mask)
-        print("accuracy", accuracy)
+        # print("prediction.shape",prediction.shape)
+        iou = model.intensity_over_union(prediction=prediction, mask=mask)
+        accuracy = model.accuracy(prediction=prediction, mask=mask)
+        print(f"index: {i}, accuracy: {accuracy}, iou: {iou}")
 
 def main(raw_data_path:Path, label_data_path:Path, output_model:Path, input_model:Path = None, n_epochs:int =10):
     logging.info("Started")
@@ -54,7 +59,7 @@ def main(raw_data_path:Path, label_data_path:Path, output_model:Path, input_mode
     os.makedirs(output_model_path, exist_ok=True)
 
     logging.info("Create Data")
-    data = Data2D(raw_data_path, label_data_path)
+    data = Data2D.create(raw_data_path, label_data_path)
 
     logging.info("Create Dataset")
     dataset = Dataset2D(data.images, data.labels)
@@ -68,21 +73,19 @@ def main(raw_data_path:Path, label_data_path:Path, output_model:Path, input_mode
     model = Model(pre_trained_model_path=input_model_path, 
                   optimizerCls=optim.Adam, 
                   learning_rate=learning_rate, 
-                  loss_fn=loss_function,
-                  train_dataloader=train_dataloader,
-                  validation_dataloader=test_dataloader,
-                  acc_dataloader=acc_dataloader
+                  loss_fn=loss_function
                   )
 
     best_vloss = 1_000_000.
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     
     logging.info("Start Training Loop")
-    training_loop(n_epochs=n_epochs, model=model)
+    training_loop(n_epochs=n_epochs, model=model, dataloader = train_dataloader)
     logging.info("End Training Loop")            
     
     logging.info("Save the model")
-    model.save(os.path.join(output_model_path, "model_final.pt"))
+    time_str = time.strftime("%d_%m_%Y_%H_%M_%S", time.gmtime())
+    model.save(os.path.join(output_model_path,f"model_final_{time_str}.pt"))
 
     logging.info("Accuracy testing")
     accuraccy_loop(model, acc_dataloader)
@@ -115,8 +118,8 @@ def init_argparse() -> argparse.ArgumentParser:
 
 if __name__ == "__main__":
     parser = init_argparse()
-    # args = parser.parse_args("E:/Sudipta/Arpan/ML_Data/data E:/Sudipta/Arpan/ML_Data/label -om ./model_radius_sqrt_new_train".split())
-    args = parser.parse_args("D:/Data/Sudipta/Arpan/ML_Training/data/send-1.tif D:/Data/Sudipta/Arpan/ML_Training/label/mask_radius_sqrt.tif -om ./model_radius_sqrt_new_train".split())
+    args = parser.parse_args("E:/Sudipta/Arpan/ML_Data/data/send-1.tif E:/Sudipta/Arpan/ML_Data/label/mask_label_sqrt_r.tif -om ./model_radius_sqrt_new_train".split())
+    # args = parser.parse_args("D:/Data/Sudipta/Arpan/ML_Training/data/send-1.tif D:/Data/Sudipta/Arpan/ML_Training/label/mask_radius_sqrt.tif -om ./model_radius_sqrt_new_train".split())
     logging.info(f"Main Args : {args}")
     print("test")
     labels = args.labels
@@ -124,5 +127,5 @@ if __name__ == "__main__":
     input_model = args.inputmodel
     output_model = args.outputmodel
     epochs = args.epochs
-    # epochs = 2
+    # epochs = 1
     main(raw_data_path=raw, label_data_path=labels, input_model=input_model, output_model=output_model, n_epochs=epochs)

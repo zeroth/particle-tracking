@@ -13,6 +13,7 @@ import time
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 from .data import Data2D
+from .utils import reshape_input_data, revert_tensor_shape, reshape_output_data, convert_tensor_shape, load_tiff, iou, accuracy, float_to_unit8
 
 class Model:
     def __init__(self, 
@@ -20,9 +21,6 @@ class Model:
                  optimizerCls=None,
                  learning_rate = 1.e-4,
                  loss_fn=nn.BCEWithLogitsLoss(),
-                 train_dataloader= None,
-                 validation_dataloader= None,
-                 acc_dataloader=None,
                  encoder_name="resnet18", 
                  encoder_weights="imagenet",
                  in_channels = 1, 
@@ -35,11 +33,10 @@ class Model:
         self.in_channels = in_channels
         self.classes=classes
         self.loss_fn = loss_fn
-        self.train_dataloader = train_dataloader
-        self.validation_dataloader = validation_dataloader
-        self.accuracy_dataloader = acc_dataloader
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        self.writer = SummaryWriter('runs/unet_segmentaion_{}'.format(timestamp))
+        self.writer = None
+        if not is_inference_mode:
+            self.writer = SummaryWriter('runs/unet_segmentaion_{}'.format(timestamp))
 
         self.device =  (
                     "cuda"
@@ -79,13 +76,22 @@ class Model:
         self.model.train(status)
     
     def flush_writer(self):
-        self.writer.flush()
+        if self.writer:
+            self.writer.flush()
     
     def close_writer(self):
-        self.writer.close()
+        if self.writer:
+            self.writer.close()
     
-    def add_sclares_writer(self, title:str, vals:dict, time_point:int):
-        self.writer.add_scalars(title,
+    def add_scalar_writer(self, title:str, vals:dict, time_point:int):
+        if self.writer:
+            self.writer.add_scalar(title,
+                        vals,
+                        time_point)
+            
+    def add_scalars_writer(self, title:str, vals:dict, time_point:int):
+        if self.writer:
+            self.writer.add_scalars(title,
                         vals,
                         time_point)
     
@@ -99,20 +105,13 @@ class Model:
     def pre_process(self, img: np.ndarray) -> torch.Tensor:
         """Pre-process the image for inference"""
         # update data shape to be divisible by 32
-        img = Data2D.prepare_data_for_ml(img.astype(np.float32))
-        print(img.shape)
-        print(len(img))
-        print(img.dtype)
-        # convert to tensor
-        img_t = torch.FloatTensor(img)
+        img = reshape_input_data(img.astype(np.float32))
         
-        # add batch dimensions
-        if img_t.ndim == 3:
-            # batch 2D image, add channel 
-            img_t = img_t.reshape(shape=(img_t.shape[0], 1, img_t.shape[1], img_t.shape[2])) 
-        else:
-            # 2D image only, add batch and channel
-            img_t = img_t.reshape(shape=(1, 1, img_t.shape[0], img_t.shape[1]))
+        # make it Batch, Channle, Hight, Width
+        img = convert_tensor_shape(img)
+
+        # convert to tensor
+        img_t = torch.FloatTensor(img.compute())
 
         # move to device
         img_t = img_t.to(self.device)
@@ -120,13 +119,13 @@ class Model:
         return img_t
 
     def prediction(self, image):
-        return self.model(image)
+        with torch.no_grad():
+            return self.model(image)
     
     def inference(self, img: np.ndarray) -> np.ndarray:
         if not self.is_inference_mode:
             self.is_inference_mode = True
             self.model.eval()
-
         """Run model inference on the input image"""
         with torch.no_grad():
             img_t = self.pre_process(img)
@@ -141,14 +140,16 @@ class Model:
         
     def post_process_image(self, org:np.ndarray, output: torch.Tensor) -> np.ndarray:
         """Post process model output into binary mask."""
-        out1 = torch.sigmoid(output)
-        out1 = (out1 > 0.5).float()
-        pred = out1 * 255.0
+        # out1 = torch.sigmoid(output)
+        # out1 = (out1 > 0.5).float()
+        # pred = out1 * 255.0
+        pred = float_to_unit8(output)
 
         pred = pred.detach().cpu().numpy()
 
+        pred = revert_tensor_shape(pred)
         # resize to the original shape
-        pred = Data2D.resize_arr_to_original_size(org, pred)
+        pred = reshape_output_data(org, pred)
         return pred
     
     def train_single_set(self, data:tuple):
@@ -162,23 +163,27 @@ class Model:
         output = self.model(image)
         loss = self.loss_fn(output.float(), mask.float())
 
+        # clear gradients
+        self.optimizer.zero_grad()
+        
         # back propogation
         loss.backward()
+
+        # update parameters
         self.optimizer.step()
-        self.optimizer.zero_grad()
 
         # self.model.train(old_mode)
         return loss.item()
     
-    def train_one_epoch(self, epoch_index):
+    def train_one_epoch(self, dataloader, epoch_index):
         running_tloss = 0
         last_loss = 0
-        for i, (image, mask) in enumerate(tqdm(self.train_dataloader, leave=False, desc=f"Epoch : {epoch_index}")):
+        for i, (image, mask) in enumerate(tqdm(dataloader, leave=False, desc=f"Epoch : {epoch_index}")):
             # print(f"\rTraining batch {i}")
             loss = self.train_single_set((image, mask))
             running_tloss += loss
-            tb_x = epoch_index * len(self.train_dataloader) + i + 1
-            self.writer.add_scalar('Loss/Train', loss, tb_x)
+            tb_x = epoch_index * len(dataloader) + i + 1
+            self.add_scalar_writer('Loss/Train', loss, tb_x)
             # if i+1 % 100 == 0:
             #     # TODO: consider that our batch size is 1
             #     last_loss = running_tloss / 100 # loss per batch
@@ -188,52 +193,61 @@ class Model:
             #     running_tloss = 0.
 
         # our batch size is 1
-        return running_tloss / len(self.train_dataloader)
+        return running_tloss / len(dataloader)
 
-    def validate_training(self, epoch_number=0, avg_loss=0):
+    def validate_training(self, dataloader, epoch_number=0, avg_loss=0):
         running_vloss = 0.0
+        running_iou = 0.0
         running_vaccuracy = 0.0
         with torch.no_grad():
-            for i, (image, mask) in enumerate(tqdm(self.train_dataloader, leave=False, desc=f"Validation Epoch {epoch_number}")):
+            for i, (image, mask) in enumerate(tqdm(dataloader, leave=False, desc=f"Validation Epoch {epoch_number}")):
                 image, mask = image.to(self.device), mask.to(self.device).float()
                 
                 prediction = self.model(image)
                 vloss = self.loss_fn(prediction, mask)
                 #validation loss
                 running_vloss += vloss.item()
-                tb_x = epoch_number * len(self.train_dataloader) + i + 1
-                self.writer.add_scalar('VLoss/Train', vloss.item(), tb_x)
+                tb_x = epoch_number * len(dataloader) + i + 1
+                self.add_scalar_writer('VLoss/Train', vloss.item(), tb_x)
 
                 # Accuracy IOU
-                accuracy = self.intensity_over_union(prediction=prediction, mask=mask)
+                iou = self.intensity_over_union(prediction=prediction, mask=mask)
+                accuracy = self.accuracy(prediction=prediction, mask=mask)
+                # accuracy = smp.utils.functional.iou(prediction, mask)
 
+                running_iou += iou
                 running_vaccuracy += accuracy
-                self.writer.add_scalar('VAccuracy/Train', accuracy.item(), tb_x)
+                self.add_scalar_writer('VAccuracy_iou/Train', iou.item(), tb_x)
+                self.add_scalar_writer('VAccuracy/Train', accuracy.item(), tb_x)
 
-        avg_vloss = running_vloss / len(self.validation_dataloader)
-        avg_vaccuracy = running_vaccuracy / len(self.validation_dataloader)
+        avg_vloss = running_vloss / len(dataloader)
+        avg_iou = running_iou / len(dataloader)
+        avg_vaccuracy = running_vaccuracy / len(dataloader)
         # print('LOSS train {} valid {}'.format(avg_loss, avg_vloss))
 
         # Log the running loss averaged per batch
         # for both training and validation
         
-        self.writer.add_scalars('Training Loss vs. Validation Loss',
+        self.add_scalars_writer('Training Loss vs. Validation Loss',
                         { 'Training' : avg_loss, 'Validation' : avg_vloss },
                         epoch_number + 1)
-        self.writer.add_scalars('Training Loss vs. Validation Accuracy',
-                        { 'Loss' : avg_loss, 'Accuracy' : avg_vaccuracy },
+        self.add_scalars_writer('Training Loss vs. Validation Iou',
+                        { 'Loss' : avg_loss, 'IOU' : avg_iou },
                         epoch_number + 1)
-        self.writer.add_scalars('Validation Loss vs. Validation Accuracy',
+        self.add_scalars_writer('Training Loss vs. Validation Accuracy',
                         { 'Loss' : avg_loss, 'Accuracy' : avg_vaccuracy },
                         epoch_number + 1)
         
-        return avg_vloss, avg_vaccuracy
+        self.add_scalars_writer('Validation Loss vs. Validation Accuracy',
+                        { 'Loss' : avg_loss, 'IOU' : avg_iou },
+                        epoch_number + 1)
+        
+        return avg_vloss, avg_iou, avg_vaccuracy
     
     def intensity_over_union(self, prediction, mask):
-        prediction_sig = torch.sigmoid(prediction)
-        prediction_sig = (prediction_sig>0.5).float()
-        
-        overlap = torch.logical_and(prediction_sig, mask) # Logical AND
-        union = torch.logical_or(prediction_sig, mask) # Logical OR
-        accuracy = overlap.sum()/union.sum()
-        return accuracy.item()
+        prediction_sig = float_to_unit8(prediction)
+        return iou(prediction_sig, mask)
+    
+    def accuracy(self, prediction, mask):
+        prediction_sig = float_to_unit8(prediction)
+        return accuracy(prediction_sig, mask)
