@@ -1,6 +1,8 @@
+import os
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
 import argparse
 import time
-import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -14,13 +16,14 @@ from torch import nn, optim
 import torch
 from tqdm import tqdm
 
+
 def main(images_path, output_path, model_path):
     
     images = load_tiff(images_path)
     os.makedirs(output_path, exist_ok=True)
     time_str = time.strftime("%d_%m_%Y_%H_%M_%S", time.gmtime())
     output_file_path = os.path.join(output_path, f"mask_{time_str}.tif")
-    pred = da.zeros_like(images, chunks=images.chunksize)
+    pred = da.zeros_like(images, chunks=images.chunksize, dtype=np.uint16)
 
     model = Model(
                 pre_trained_model_path=model_path,
@@ -64,12 +67,15 @@ def init_argparse() -> argparse.ArgumentParser:
 
 if __name__ == "__main__":
     parser = init_argparse()
-    args = parser.parse_args("E:/Sudipta/Arpan/ML_Data/data/send-1.tif E:/Sudipta/Arpan/op -im D:/Lab/particle-tracking/model_radius_sqrt_new_train/model_final_14_06_2023_11_31_30.pt".split())
+    args = parser.parse_args("D:/Data/Sudipta/Arpan/send-1.tif D:/Data/Sudipta/Arpan/op -im D:/Lab/particle-tracking/model_radius_sqrt_new_train/model_final_14_06_2023_11_31_30.pt".split())
+    _MODEL_FILE_NAME_ = 'model_final.pt'
+    _MODEL_DIR_ = Path.home().joinpath('.ml_particle_tracking', 'models')
+    _MODEL_FILE_PATH_ = _MODEL_DIR_.joinpath(_MODEL_FILE_NAME_)
     # args = parser.parse_args("D:/Data/Sudipta/Arpan/ML_Training/data/send-1.tif D:/Data/Sudipta/Arpan/ML_Training/label/mask_radius_sqrt.tif -om ./model_radius_sqrt_new_train".split())
     logging.info(f"Main Args : {args}")
     print("test")
     labels = args.labels
     images = args.images
-    input_model = args.inputmodel
+    input_model = _MODEL_FILE_PATH_
     # epochs = 1
     main(images_path=images, output_path=labels, model_path=input_model)
