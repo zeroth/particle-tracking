@@ -1,21 +1,33 @@
 import os
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
+os.environ["CUBLAS_WORKSPACE_CONFIG"]=":4096:2" #https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility
 
-import argparse
-import time
 import sys
 from pathlib import Path
 from typing import Optional
+import argparse
+import time
+
+import random
 import numpy as np
-import tifffile
-import logging
+import dask.array as da
+
+# https://pytorch.org/docs/stable/notes/randomness.html
+import torch
+torch.use_deterministic_algorithms(True)
+torch.backends.cudnn.benchmark = False
+
+from torch import nn, optim
+
+from particle_tracking.data import Data2D, Dataset2D
 from particle_tracking.model import Model
 from particle_tracking.utils import reshape_input_data, revert_tensor_shape, reshape_output_data, convert_tensor_shape, load_tiff, iou, accuracy, float_to_unit8
-import dask.array as da
-from torch import nn, optim
-import torch
-from tqdm import tqdm
 
+import tifffile
+from tqdm import tqdm
+from pprint import pprint
+import logging
+from datetime import datetime
 
 def main(images_path, output_path, model_path):
     
@@ -66,6 +78,13 @@ def init_argparse() -> argparse.ArgumentParser:
 
 
 if __name__ == "__main__":
+     # https://pytorch.org/docs/stable/notes/randomness.html
+    seed = 42
+    random.seed(seed)
+    np.random.seed(seed)
+    da.random.RandomState(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
     parser = init_argparse()
     args = parser.parse_args("D:/Data/Sudipta/Arpan/send-1.tif D:/Data/Sudipta/Arpan/op -im D:/Lab/particle-tracking/model_radius_sqrt_new_train/model_final_14_06_2023_11_31_30.pt".split())
     _MODEL_FILE_NAME_ = 'model_final.pt'
