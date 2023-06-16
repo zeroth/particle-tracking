@@ -1,19 +1,34 @@
 import os
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+os.environ["CUBLAS_WORKSPACE_CONFIG"]=":4096:2" #https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility
+
 import sys
 from pathlib import Path
 from typing import Optional
+
+import random
 import numpy as np
-import tifffile
+import dask.array as da
+
+# https://pytorch.org/docs/stable/notes/randomness.html
 import torch
+torch.use_deterministic_algorithms(True)
+torch.backends.cudnn.benchmark = False
+
 from torch import nn, optim
+
+from particle_tracking.data import Data2D, Dataset2D
+from particle_tracking.model import Model
+
+import tifffile
 from tqdm import tqdm
 from pprint import pprint
 import logging
-from particle_tracking.data import Data2D, Dataset2D
-from particle_tracking.model import Model
 from datetime import datetime
 
-os.environ["KMP_DUPLICATE_LIB_OK"]= "TRUE"
+
+
+
 
 
 def training_loop(n_epochs, model, dataloader):
@@ -117,6 +132,14 @@ def init_argparse() -> argparse.ArgumentParser:
 
 
 if __name__ == "__main__":
+    # https://pytorch.org/docs/stable/notes/randomness.html
+    seed = 42
+    random.seed(seed)
+    np.random.seed(seed)
+    da.random.RandomState(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    
     parser = init_argparse()
     args = parser.parse_args("E:/Sudipta/Arpan/ML_Data/data/send-1.tif E:/Sudipta/Arpan/ML_Data/label/mask_label_sqrt_r.tif -om ./model_radius_sqrt_new_train".split())
     # args = parser.parse_args("D:/Data/Sudipta/Arpan/ML_Training/data/send-1.tif D:/Data/Sudipta/Arpan/ML_Training/label/mask_radius_sqrt.tif -om ./model_radius_sqrt_new_train".split())
