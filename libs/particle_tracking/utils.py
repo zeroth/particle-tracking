@@ -1,11 +1,14 @@
+from pathlib import Path
 import random
 import dask.array as da
 import numpy as np
 import torch
 
 from dask_image.imread import imread
-from pathlib import Path
-
+import pandas as pd
+import trackpy
+from skimage.measure import label, regionprops_table
+from tqdm import tqdm
 
 def load_tiff(data_path:Path):
     # return imread(os.path.join(data_path,"*.tif"))
@@ -90,6 +93,36 @@ def reshape_output_data(org_data:da.Array, ouput_data:da.Array):
     
     return data.astype(org_data.dtype)
 
+# mask position
+def get_frame_position_properties(frame:int, mask:np.ndarray, image:np.ndarray=None, result:pd.DataFrame=None) -> pd.DataFrame:
+    mask_label = label(mask)
+    properties = regionprops_table(label_image=mask_label, intensity_image=image, properties=['label','centroid', 'intensity_mean', 'area'])
+    pf = pd.DataFrame(properties)
+    pf['frame'] = frame
+
+    if result is None:
+        result= pf
+    else:
+        result = pd.concat([result, pf], ignore_index =True)
+    
+    return result
+
+
+def get_statck_properties(masks:np.ndarray, images:np.ndarray, result:pd.DataFrame=None, show_progress=False) -> pd.DataFrame:
+    assert images.shape == masks.shape
+
+    iter_range = tqdm(range(images.shape[0])) if show_progress else range(images.shape[0])
+
+    for i in iter_range:
+        image = images[i]
+        mask = masks[i]
+        result = get_frame_position_properties(frame=i, mask=mask, image=image, result=result)
+    result.rename(columns={'centroid-0':'y',  'centroid-1':'x'}, inplace=True)
+    return result
+
+def get_tracks(df:pd.DataFrame, search_range:float=2, memory:int=0, show_progress:bool=False) -> pd.DataFrame:
+    trackpy.quiet((not show_progress))
+    return trackpy.link(f=df,search_range=2, memory=0)
 
 def test_shapes():
     img = np.ones((10, 138,181))
