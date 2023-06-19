@@ -1,19 +1,30 @@
+import os
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+os.environ["CUBLAS_WORKSPACE_CONFIG"]=":4096:2" #https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility
+
 from typing import Optional
 from pathlib import Path
 
-import numpy as np
-import segmentation_models_pytorch as smp
-import torch
-from tqdm import tqdm
-import os
-import dask.array as da
 import logging
+from tqdm import tqdm
+
+import random
+import numpy as np
+import dask.array as da
+
+# https://pytorch.org/docs/stable/notes/randomness.html
+import torch
+torch.use_deterministic_algorithms(True)
+torch.backends.cudnn.benchmark = False
+
 from torch import nn, optim
 import time
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
+import segmentation_models_pytorch as smp
+
 from .data import Data2D
-from .utils import reshape_input_data, revert_tensor_shape, reshape_output_data, convert_tensor_shape, load_tiff, iou, accuracy, float_to_unit8
+from .utils import reshape_input_data, revert_tensor_shape, reshape_output_data, convert_tensor_shape, load_tiff, iou, accuracy, float_to_unit8, seed_everything
 
 class Model:
     def __init__(self, 
@@ -27,6 +38,10 @@ class Model:
                  classes=1, 
                  is_inference_mode=False) -> None:
         
+        # Seed eveything 
+        seed_everything()
+
+        # init
         self.is_inference_mode = is_inference_mode
         self.encoder_name=encoder_name
         self.encoder_weights=encoder_weights

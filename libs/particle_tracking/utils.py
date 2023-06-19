@@ -1,8 +1,11 @@
+import random
 import dask.array as da
 import numpy as np
+import torch
+
 from dask_image.imread import imread
 from pathlib import Path
-import torch
+
 
 def load_tiff(data_path:Path):
     # return imread(os.path.join(data_path,"*.tif"))
@@ -24,6 +27,14 @@ def float_to_unit8(tensor:torch.Tensor):
     tensor = (tensor>0.5).float()
     tensor = tensor * 255.0
     return tensor
+
+def seed_everything(seed:int = 42):
+    # https://pytorch.org/docs/stable/notes/randomness.html
+    random.seed(seed)
+    np.random.seed(seed)
+    da.random.RandomState(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 # array shape related helper function for 2d data and dask array 
 def _get_padding(x:da.Array, stride:int=32):

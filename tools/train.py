@@ -141,14 +141,18 @@ if __name__ == "__main__":
     torch.cuda.manual_seed_all(seed)
     
     parser = init_argparse()
-    args = parser.parse_args("E:/Sudipta/Arpan/ML_Data/data/send-1.tif E:/Sudipta/Arpan/ML_Data/label/mask_label_sqrt_r.tif -om ./model_radius_sqrt_new_train".split())
-    # args = parser.parse_args("D:/Data/Sudipta/Arpan/ML_Training/data/send-1.tif D:/Data/Sudipta/Arpan/ML_Training/label/mask_radius_sqrt.tif -om ./model_radius_sqrt_new_train".split())
+    # args = parser.parse_args("E:/Sudipta/Arpan/ML_Data/data/send-1.tif E:/Sudipta/Arpan/ML_Data/label/mask_label_sqrt_r.tif -om ./model_radius_sqrt_new_train".split())
+    args = parser.parse_args("D:/Data/Sudipta/Arpan/ML_Training/data/send-1.tif D:/Data/Sudipta/Arpan/ML_Training/label/mask_radius_sqrt.tif -om ./model_radius_sqrt_new_train".split())
     logging.info(f"Main Args : {args}")
     print("test")
+    _MODEL_FILE_NAME_ = 'model_final.pt'
+    _MODEL_DIR_ = Path.home().joinpath('.ml_particle_tracking')
+    _MODEL_FILE_PATH_ = _MODEL_DIR_.joinpath(_MODEL_FILE_NAME_)
+    print(f" exists : {os.path.exists(_MODEL_FILE_PATH_)}, {_MODEL_FILE_PATH_}")
     labels = args.labels
     raw = args.raw
-    input_model = args.inputmodel
+    input_model = _MODEL_FILE_PATH_ #args.inputmodel
     output_model = args.outputmodel
-    epochs = args.epochs
-    # epochs = 1
-    main(raw_data_path=raw, label_data_path=labels, input_model=input_model, output_model=output_model, n_epochs=epochs)
+    # epochs = args.epochs
+    epochs = 1
+    # main(raw_data_path=raw, label_data_path=labels, input_model=input_model, output_model=output_model, n_epochs=epochs)

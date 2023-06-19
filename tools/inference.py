@@ -88,13 +88,13 @@ if __name__ == "__main__":
     parser = init_argparse()
     args = parser.parse_args("D:/Data/Sudipta/Arpan/send-1.tif D:/Data/Sudipta/Arpan/op -im D:/Lab/particle-tracking/model_radius_sqrt_new_train/model_final_14_06_2023_11_31_30.pt".split())
     _MODEL_FILE_NAME_ = 'model_final.pt'
-    _MODEL_DIR_ = Path.home().joinpath('.ml_particle_tracking', 'models')
+    _MODEL_DIR_ = Path.home().joinpath('.ml_particle_tracking')
     _MODEL_FILE_PATH_ = _MODEL_DIR_.joinpath(_MODEL_FILE_NAME_)
+    print(f" exists : {os.path.exists(_MODEL_FILE_PATH_)}, {_MODEL_FILE_PATH_}")
     # args = parser.parse_args("D:/Data/Sudipta/Arpan/ML_Training/data/send-1.tif D:/Data/Sudipta/Arpan/ML_Training/label/mask_radius_sqrt.tif -om ./model_radius_sqrt_new_train".split())
     logging.info(f"Main Args : {args}")
     print("test")
     labels = args.labels
     images = args.images
     input_model = _MODEL_FILE_PATH_
-    # epochs = 1
     main(images_path=images, output_path=labels, model_path=input_model)
