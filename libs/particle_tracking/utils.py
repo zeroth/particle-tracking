@@ -96,7 +96,8 @@ def reshape_output_data(org_data:da.Array, ouput_data:da.Array):
 # mask position
 def get_frame_position_properties(frame:int, mask:np.ndarray, image:np.ndarray=None, result:pd.DataFrame=None) -> pd.DataFrame:
     mask_label = label(mask)
-    properties = regionprops_table(label_image=mask_label, intensity_image=image, properties=['label','centroid', 'intensity_mean', 'area'])
+    properties_keys = ['label','centroid', 'intensity_mean', 'intensity_max', 'intensity_min', 'area']
+    properties = regionprops_table(label_image=mask_label, intensity_image=image, properties=properties_keys)
     pf = pd.DataFrame(properties)
     pf['frame'] = frame
 
