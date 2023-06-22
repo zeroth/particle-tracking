@@ -10,6 +10,8 @@ from typing import List, Dict, Any
 from particle_tracking.utils import get_statck_properties, get_tracks
 from dataclasses import dataclass, field, fields
 
+import matplotlib.pyplot as plt
+import particle_tracking.stepfinder as sf
 # https://www.science.org/doi/10.1126/science.abd9944
 # https://github.com/tobiasjj/stepfinder/tree/master
 # https://www.sciencedirect.com/science/article/pii/S2001037021002944
@@ -147,6 +149,38 @@ def main():
     print(f"point[0] : {points[0]}, type : {type(points[0])}")
 
     print(f"Intensity tracks[0] : {track_objs[0].to_list_by_key('intensity_mean')}")
+    intensity_0 = track_objs[0].to_list_by_key('intensity_mean')
+    x_0 = list(range(len(intensity_0)))
+
+
+    resolution = 10 # in Hz
+
+    # Set parameters for filtering the data and finding steps
+    filter_min_t = 0.005  # None or s
+    filter_max_t = 0.050  # None or s
+    expected_min_step_size = 2000.0  # in values of data
+    # Set additional parameters for filtering the data
+    filter_time =  None  # None or s
+    filter_number = 2  # None or number
+    edginess = 1  # float
+    # Set additional parameters for finding the steps
+    expected_min_dwell_t = None  # None or s
+    step_size_threshold = None  # None (equal to 'adapt'), 'constant', or in values of data
+
+    fbnl_filter = sf.filter_fbnl(intensity_0, 10, 2)
+    # step_finder_result \
+    #     = sf.filter_find_analyse_steps(intensity_0, resolution, filter_time, filter_min_t, filter_max_t,
+    #                                 filter_number, edginess,
+    #                                 expected_min_step_size, expected_min_dwell_t,
+    #                                 step_size_threshold, pad_data=False,
+    #                                 verbose=True, plot=False)
+    
+    
+    
+    plt.plot(x_0, fbnl_filter.data, label = "Intensity")
+    plt.plot(x_0, fbnl_filter.data_filtered, label = "Filter CKF" )
+    plt.legend()
+    plt.show()
     # print(len(tracks))
     # track = tracks[0]
     # for p in track.points:
@@ -168,12 +202,12 @@ def main():
     # print(f"points len = {len(points)}")
     # points = np.array(points)
     # tracks = np.array(tracks)
-    viewer = napari.view_image(images, name='raw_particles', rgb=False)
-    viewer.add_labels(masks, name='particles')
-    #viewer.add_labels(mask_label, name='particles_labels')
-    viewer.add_points(points, name="points", size=2)
-    viewer.add_tracks(tracks, name="Trackes", tail_width =2, tail_length=5)
-    napari.run()
+    # viewer = napari.view_image(images, name='raw_particles', rgb=False)
+    # viewer.add_labels(masks, name='particles')
+    # #viewer.add_labels(mask_label, name='particles_labels')
+    # viewer.add_points(points, name="points", size=2)
+    # viewer.add_tracks(tracks, name="Trackes", tail_width =2, tail_length=5)
+    # napari.run()
 
 
 if __name__ == "__main__":
