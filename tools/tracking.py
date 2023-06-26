@@ -168,12 +168,12 @@ def main():
     step_size_threshold = None  # None (equal to 'adapt'), 'constant', or in values of data
 
     fbnl_filter = sf.filter_fbnl(intensity_0, 10, 2)
-    # step_finder_result \
-    #     = sf.filter_find_analyse_steps(intensity_0, resolution, filter_time, filter_min_t, filter_max_t,
-    #                                 filter_number, edginess,
-    #                                 expected_min_step_size, expected_min_dwell_t,
-    #                                 step_size_threshold, pad_data=False,
-    #                                 verbose=True, plot=False)
+    step_finder_result \
+        = sf.filter_find_analyse_steps(intensity_0, resolution, filter_time, filter_min_t, filter_max_t,
+                                    filter_number, edginess,
+                                    expected_min_step_size, expected_min_dwell_t,
+                                    step_size_threshold, pad_data=False,
+                                    verbose=True, plot=False)
     
     
     
