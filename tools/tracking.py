@@ -48,19 +48,7 @@ class Point:
     
     def __getitem__(self, item):
         return getattr(self, item)
-    # def __repr__(self) -> str:
-    #     return f'X:{self.x}, Y:{self.y}, Z:{self.z} -> {self.intensity_mean}'
-    # def __lt__(self, other):
-    #     return (self.x, self.y, self.z) < (other.x, other.y, other.z)
-    
-    # def __le__(self, other):
-    #     return (self.x, self.y, self.z) <= (other.x, other.y, other.z)
-    
-    # def __gt__(self, other):
-    #     return (self.x, self.y, self.z) > (other.x, other.y, other.z)
-    
-    # def __ge__(self, other):
-    #     return (self.x, self.y, self.z) >= (other.x, other.y, other.z)
+
 
 @dataclass
 class Track:

@@ -23,6 +23,8 @@ from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 import segmentation_models_pytorch as smp
 
+from skimage.measure import label
+
 from .data import Data2D
 from .utils import reshape_input_data, revert_tensor_shape, reshape_output_data, convert_tensor_shape, load_tiff, iou, accuracy, float_to_unit8, seed_everything
 
@@ -137,7 +139,7 @@ class Model:
         with torch.no_grad():
             return self.model(image)
     
-    def inference(self, img: np.ndarray) -> np.ndarray:
+    def inference(self, img: np.ndarray, generate_label:bool=False) -> np.ndarray:
         if not self.is_inference_mode:
             self.is_inference_mode = True
             self.model.eval()
@@ -150,8 +152,9 @@ class Model:
 
             # post-process
             mask = self.post_process_image(img, output)
-            
-            return mask.astype('uint16')
+            mask = mask.astype(img.dtype)
+            mask = label(mask) if generate_label else mask
+            return mask
         
     def post_process_image(self, org:np.ndarray, output: torch.Tensor) -> np.ndarray:
         """Post process model output into binary mask."""

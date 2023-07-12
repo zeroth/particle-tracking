@@ -8,6 +8,8 @@ from dask_image.imread import imread
 import pandas as pd
 import trackpy
 from skimage.measure import label, regionprops_table
+from dataclasses import dataclass, field, fields
+from typing import List, Dict, Any
 from tqdm import tqdm
 
 def load_tiff(data_path:Path):
@@ -94,8 +96,8 @@ def reshape_output_data(org_data:da.Array, ouput_data:da.Array):
     return data.astype(org_data.dtype)
 
 # mask position
-def get_frame_position_properties(frame:int, mask:np.ndarray, image:np.ndarray=None, result:pd.DataFrame=None) -> pd.DataFrame:
-    mask_label = label(mask)
+def get_frame_position_properties(frame:int, mask:np.ndarray, image:np.ndarray=None, result:pd.DataFrame=None, generate_label:bool=True) -> pd.DataFrame:
+    mask_label =  label(mask) if generate_label else mask 
     properties_keys = ['label','centroid', 'intensity_mean', 'intensity_max', 'intensity_min', 'area']
     properties = regionprops_table(label_image=mask_label, intensity_image=image, properties=properties_keys)
     pf = pd.DataFrame(properties)
@@ -109,7 +111,7 @@ def get_frame_position_properties(frame:int, mask:np.ndarray, image:np.ndarray=N
     return result
 
 
-def get_statck_properties(masks:np.ndarray, images:np.ndarray, result:pd.DataFrame=None, show_progress=False) -> pd.DataFrame:
+def get_statck_properties(masks:np.ndarray, images:np.ndarray, result:pd.DataFrame=None, generate_label:bool=True, show_progress=False) -> pd.DataFrame:
     assert images.shape == masks.shape
 
     iter_range = tqdm(range(images.shape[0])) if show_progress else range(images.shape[0])
@@ -117,13 +119,77 @@ def get_statck_properties(masks:np.ndarray, images:np.ndarray, result:pd.DataFra
     for i in iter_range:
         image = images[i]
         mask = masks[i]
-        result = get_frame_position_properties(frame=i, mask=mask, image=image, result=result)
+        result = get_frame_position_properties(frame=i, mask=mask, image=image, result=result, generate_label=generate_label)
     result.rename(columns={'centroid-0':'y',  'centroid-1':'x'}, inplace=True)
     return result
 
 def get_tracks(df:pd.DataFrame, search_range:float=2, memory:int=0, show_progress:bool=False) -> pd.DataFrame:
     trackpy.quiet((not show_progress))
     return trackpy.link(f=df,search_range=2, memory=0)
+
+def classFromDict(className, argDict):
+    fieldSet = {f.name for f in fields(className) if f.init}
+    filteredArgDict = {k : v for k, v in argDict.items() if k in fieldSet}
+    return className(**filteredArgDict)
+
+@dataclass(repr=True)
+class Point:
+    x:int
+    y:int
+    z:int = None
+    area:float = 0
+    bbox:tuple = None
+    intensity_max:float = 0
+    intensity_mean:float = 0
+    intensity_min:float = 0
+    label:int = 0
+    frame:int = 0
+    other:Dict[Any, Any] = None
+
+    def __eq__(self, other):
+        return (self.x, self.y, self.z) == (other.x, other.y, other.z)
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def to_time_tuple(self):
+        # frame/time_point, (z), y, x
+        return [self.frame, self.y, self.x] if self.z is None else [self.frame, self.z, self.y, self.x]
+    
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+
+@dataclass
+class Track:
+    points:List[Point] = field(default_factory=list)
+    id: int = 0
+    id_key:str = field(default_factory=str)
+    data_frame :pd.DataFrame = field(default_factory=pd.DataFrame)
+
+    def __len__(self):
+        return len(self.points)
+    
+    def __repr__(self) -> str:
+        return f'id:{self.id}, len: {len(self.points)}'
+    
+    def init_by_dataframe(self, df:pd.DataFrame, id_key:str):
+        df['label'] = df[id_key]
+        self.id_key =id_key
+        self.data_frame = df
+        for ti, r in df.iterrows():
+            self.id = int(r[id_key])
+            point = classFromDict(Point, r.to_dict())
+            self.points.append(point)
+    def to_points_list(self):
+        return list((p.to_time_tuple() for p in self.points))
+    
+    def to_list(self):
+        # track_id, frame/time_point, (z), y, x
+        return list(([self.id, ] + p.to_time_tuple() for p in self.points))
+    
+    def to_list_by_key(self, key):
+        return list((p[key] for p in self.points))
 
 def test_shapes():
     img = np.ones((10, 138,181))
