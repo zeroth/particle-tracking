@@ -125,7 +125,7 @@ def get_statck_properties(masks:np.ndarray, images:np.ndarray, result:pd.DataFra
 
 def get_tracks(df:pd.DataFrame, search_range:float=2, memory:int=0, show_progress:bool=False) -> pd.DataFrame:
     trackpy.quiet((not show_progress))
-    return trackpy.link(f=df,search_range=2, memory=0)
+    return trackpy.link(f=df,search_range=search_range, memory=memory)
 
 def classFromDict(className, argDict):
     fieldSet = {f.name for f in fields(className) if f.init}
