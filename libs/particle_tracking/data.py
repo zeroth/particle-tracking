@@ -54,12 +54,9 @@ class Dataset2D(Dataset):
         np.random.shuffle(indices)
 
         val_indices, train_indices = indices[split:], indices[:split]
-        val_acc_split = int(len(val_indices)/2)
-        val_indices, acc_indices = val_indices[val_acc_split:], val_indices[:val_acc_split]
 
         train_dataset = Subset(dataset=self, indices=train_indices)
         test_dataset = Subset(dataset=self, indices=val_indices)
-        acc_dataset = Subset(dataset=self, indices=acc_indices)
 
         # n_workers = int(os.cpu_count()/2) if os.cpu_count() >=8 else 4
         n_workers = 1
@@ -79,12 +76,11 @@ class Dataset2D(Dataset):
             pin_memory=False
         )
 
-        acc_dataloader = DataLoader(
-            dataset= acc_dataset,
-            batch_size=batch_size,
-            num_workers=n_workers,
-            shuffle=False,
-            pin_memory=False
-        )
+        return train_dataloader, test_dataloader
 
-        return train_dataloader, test_dataloader, acc_dataloader
+    def get_single_data_loader(self, batch_size = 1):
+        dataloader = DataLoader(dataset=self, batch_size=batch_size,
+            num_workers=1,
+            shuffle=True,
+            pin_memory=False)
+        return dataloader

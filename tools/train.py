@@ -79,7 +79,7 @@ def main(raw_data_path:Path, label_data_path:Path, output_model:Path, input_mode
     logging.info("Create Dataset")
     dataset = Dataset2D(data.images, data.labels)
     logging.info("Get Dataloaders")
-    train_dataloader, test_dataloader, acc_dataloader = dataset.get_data_loader(split=train_test_split)
+    train_dataloader, test_dataloader = dataset.get_data_loader(split=train_test_split)
 
     logging.info("Get Loss function")
     loss_function  = nn.BCEWithLogitsLoss()
@@ -103,7 +103,7 @@ def main(raw_data_path:Path, label_data_path:Path, output_model:Path, input_mode
     model.save(os.path.join(output_model_path,f"model_final_{time_str}.pt"))
 
     logging.info("Accuracy testing")
-    accuraccy_loop(model, acc_dataloader)
+    accuraccy_loop(model, test_dataloader)
 
     model.close_writer()
 
