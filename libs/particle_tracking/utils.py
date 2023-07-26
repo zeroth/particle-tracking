@@ -12,6 +12,24 @@ from dataclasses import dataclass, field, fields
 from typing import List, Dict, Any
 from tqdm import tqdm
 
+def scale_to(value, measure_range, target_range = [0,1]):
+    """
+    value   ∈[rmin,rmax] denote your measurement to be scaled
+
+    measure_range:
+        rmin    denote the minimum of the range of your measurement
+        rmax    denote the maximum of the range of your measurement
+    target_range:
+        tmin    denote the minimum of the range of your desired target scaling
+        tmax    denote the maximum of the range of your desired target scaling
+
+    (value - rmin /  rmax - rmin) X (tmax - tmin)+tmin
+    """
+    r_range = measure_range[1] - measure_range[0]
+    t_range = target_range[1] - target_range[0]
+    result = ((value - measure_range[0]) / r_range) * t_range + target_range[0]
+    return result
+
 def load_tiff(data_path:Path):
     # return imread(os.path.join(data_path,"*.tif"))
     data = imread(data_path)
@@ -96,8 +114,9 @@ def reshape_output_data(org_data:da.Array, ouput_data:da.Array):
     return data.astype(org_data.dtype)
 
 # mask position
-def get_frame_position_properties(frame:int, mask:np.ndarray, image:np.ndarray=None, result:pd.DataFrame=None, generate_label:bool=True) -> pd.DataFrame:
-    mask_label =  label(mask) if generate_label else mask 
+def get_frame_position_properties(frame:int, mask:np.ndarray, image:np.ndarray=None, result:pd.DataFrame=None) -> pd.DataFrame:
+    mask = np.where(mask > 0, 1, 0)
+    mask_label =  label(mask) 
     properties_keys = ['label','centroid', 'intensity_mean', 'intensity_max', 'intensity_min', 'area']
     properties = regionprops_table(label_image=mask_label, intensity_image=image, properties=properties_keys)
     pf = pd.DataFrame(properties)
@@ -110,8 +129,11 @@ def get_frame_position_properties(frame:int, mask:np.ndarray, image:np.ndarray=N
     
     return result
 
+def get_properties(mask:np.ndarray, images:np.ndarray, show_progress=False):
+    pass
 
-def get_statck_properties(masks:np.ndarray, images:np.ndarray, result:pd.DataFrame=None, generate_label:bool=True, show_progress=False) -> pd.DataFrame:
+
+def get_statck_properties(masks:np.ndarray, images:np.ndarray, result:pd.DataFrame=None, show_progress=False) -> pd.DataFrame:
     assert images.shape == masks.shape
 
     iter_range = tqdm(range(images.shape[0])) if show_progress else range(images.shape[0])
@@ -119,7 +141,7 @@ def get_statck_properties(masks:np.ndarray, images:np.ndarray, result:pd.DataFra
     for i in iter_range:
         image = images[i]
         mask = masks[i]
-        result = get_frame_position_properties(frame=i, mask=mask, image=image, result=result, generate_label=generate_label)
+        result = get_frame_position_properties(frame=i, mask=mask, image=image, result=result)
     result.rename(columns={'centroid-0':'y',  'centroid-1':'x'}, inplace=True)
     return result
 
@@ -190,6 +212,50 @@ class Track:
     
     def to_list_by_key(self, key):
         return list((p[key] for p in self.points))
+
+def Fit2StepsTable(dataX, FitX):
+    """
+    Build a table of step properties from a step fit and the raw data
+    "index", "level before(width)", "level after", "step height", "dwell before", "dwell after", "predicted error","measured error",
+    ]
+    """
+    # get an index ('time') array:
+    Lx = len(dataX)
+    T = np.arange(Lx)
+    
+    # get a noise estimate via the residu:
+    globalnoise = np.std(np.diff(dataX - FitX)) / 2**0.5
+    fn_error_pred = lambda dwell: 2 * (globalnoise**2 / dwell[0] + globalnoise**2 / dwell[1]) ** 0.5 / 2**0.5
+    fn_error_meas = lambda index, dwell: ( 2 * ((np.std(dataX[slice(*index[0])])**2 / dwell[0] + np.std(dataX[slice(*index[1])])**2 / dwell[1]) ** 0.5) / 2**0.5   )
+    
+    values, indices = np.unique(FitX, return_index=True)
+    indices.sort()
+    indices = np.array(indices) -1
+
+    current_val = FitX[indices[1:]]
+    next_val = FitX[indices[1:]+1]
+    step_height = next_val - current_val # step height
+    dwell_pre = []
+    dwell_next = []
+    error_pred = []
+    error_meas = []
+    
+    for ii in range(1, len(indices)):
+        if ii != len(indices)-1 :
+            dwell = ((indices[ii] - indices[ii-1]), (indices[ii+1] - indices[ii]))
+            index_slice = [((indices[ii-1]+1), (indices[ii])), ((indices[ii]+1), (indices[ii+1]+1))]
+        else:
+            dwell = ((indices[ii] - indices[ii-1]), (Lx - indices[ii]))
+            index_slice = [((indices[ii-1]+1), (indices[ii])), ((indices[ii]+1), Lx)]
+        
+        err_pred = fn_error_pred(dwell)
+        err_meas = fn_error_meas(index_slice, dwell)
+        
+        dwell_pre.append(dwell[0])
+        dwell_next.append(dwell[1])
+        error_pred.append(err_pred)
+        error_meas.append(err_meas)
+    return np.array([indices[1:], current_val, next_val, step_height, dwell_pre, dwell_next, error_pred, error_meas ]).T
 
 def test_shapes():
     img = np.ones((10, 138,181))

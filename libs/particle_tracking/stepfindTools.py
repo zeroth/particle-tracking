@@ -113,12 +113,12 @@ def Fit2Steps(dataX, FitX):
     globalnoise = np.std(np.diff(dataX - FitX)) / 2**0.5
     # get indices of last points prior to steps and include start and end:
     ixes0 = np.ndarray.flatten(np.argwhere(np.diff(FitX) != 0))
-    print(ixes0)
+    # print(ixes0)
     Lix = len(ixes0)
     ixes = np.hstack([[-1], ixes0, [Lx]])
     steptable = np.zeros(shape=(Lix, 8))
     # get data per step:
-    for ii in range(1, Lix, 1):
+    for ii in range(1, Lix+1, 1):
         ix_pre = ixes[ii - 1]
         ix = ixes[ii]
         ix_aft = ixes[ii + 1]
